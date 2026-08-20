@@ -88,6 +88,8 @@ CI 每次提交都会在 ubuntu-latest 上跑完整的 build + test + demo，
 | `host_demo` | 四个脚本化场景：滤波对比表、三消费者解耦、故障注入、驱动互换 | 第二个 |
 | `test_filters` 等 5 个 | 单元测试，也可以单独运行看断言明细 | |
 
+不想编译也能看效果：[DEMO.md](DEMO.md) 里是这两个程序的完整实际输出。
+
 ### live_demo 的按键
 
 | 键 | 效果 |
