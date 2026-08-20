@@ -1,5 +1,10 @@
 # 跨 MCU 平台 Sensor 框架（C++11 / 温度传感器实现）
 
+[![build-and-test](https://github.com/I-SpongeBob/mcu-sensor-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/I-SpongeBob/mcu-sensor-framework/actions/workflows/ci.yml)
+![C++11](https://img.shields.io/badge/C%2B%2B-11-blue)
+![no heap](https://img.shields.io/badge/heap-none-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-lightgrey)
+
 > A portable, allocation-free C++11 sensor framework for microcontrollers.
 > One temperature pipeline — HAL → driver → filter chain → service → publisher —
 > feeds a GUI, an MQTT reporter and a closed-loop thermostat that know nothing
