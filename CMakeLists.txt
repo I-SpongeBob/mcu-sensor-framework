@@ -46,6 +46,16 @@ else()
 endif()
 target_compile_options(sensorfw PRIVATE ${SENSORFW_WARNINGS})
 
+# MinGW links libstdc++/libgcc/libwinpthread dynamically by default, so the
+# executables only start from a shell that has the toolchain on PATH. Link them
+# statically instead: the demos are meant to be double-clickable, and a
+# firmware-oriented project has no business shipping a runtime DLL anyway.
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(SENSORFW_LINK_OPTIONS -static -static-libgcc -static-libstdc++)
+else()
+    set(SENSORFW_LINK_OPTIONS "")
+endif()
+
 # The MCU profile: no exceptions, no RTTI, and therefore no hidden heap use.
 # Kept on for the host build too, so the tests exercise the same code shape
 # that runs on the device.
@@ -81,12 +91,14 @@ if(SENSORFW_TARGET STREQUAL "host")
         add_executable(host_demo examples/host_demo/main.cpp)
         target_link_libraries(host_demo PRIVATE sensorfw_port_host)
         target_compile_options(host_demo PRIVATE ${SENSORFW_WARNINGS})
+        target_link_options(host_demo PRIVATE ${SENSORFW_LINK_OPTIONS})
 
         # Real-time terminal dashboard. Same stack, driven from the keyboard;
         # not part of ctest because it runs until the user quits.
         add_executable(live_demo examples/live_demo/main.cpp)
         target_link_libraries(live_demo PRIVATE sensorfw_port_host)
         target_compile_options(live_demo PRIVATE ${SENSORFW_WARNINGS})
+        target_link_options(live_demo PRIVATE ${SENSORFW_LINK_OPTIONS})
     endif()
 
     if(SENSORFW_BUILD_TESTS)
@@ -95,6 +107,7 @@ if(SENSORFW_TARGET STREQUAL "host")
             add_executable(${test_name} tests/${test_name}.cpp)
             target_link_libraries(${test_name} PRIVATE sensorfw_port_host)
             target_compile_options(${test_name} PRIVATE ${SENSORFW_WARNINGS})
+            target_link_options(${test_name} PRIVATE ${SENSORFW_LINK_OPTIONS})
             add_test(NAME ${test_name} COMMAND ${test_name})
         endforeach()
     endif()
