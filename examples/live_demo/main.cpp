@@ -8,7 +8,7 @@
  * is a single call to SensorService::setFilter(); pulling the sensor or the
  * network link out from under the stack exercises the real fault paths.
  *
- * Keys:  1..5 filter profile   f sensor fault   m MQTT link
+ * Keys:  1..7 filter profile   f sensor fault   m MQTT link
  *        + -  setpoint         r reset chart    q quit
  */
 #include <stdio.h>
@@ -32,6 +32,8 @@
 #include "sensorfw/filter/filter_chain.hpp"
 #include "sensorfw/filter/kalman1d.hpp"
 #include "sensorfw/filter/median.hpp"
+#include "sensorfw/filter/moving_average.hpp"
+#include "sensorfw/filter/outlier_gate.hpp"
 #include "sensorfw/filter/pass_through.hpp"
 #include "sensorfw/filter/slew_rate_limiter.hpp"
 #include "sensorfw/service/sensor_service.hpp"
@@ -88,10 +90,19 @@ int main() {
     drivers::NtcThermistorSensor sensor(adc, clock, drivers::NtcConfig(), "ntc-10k@adc1");
 
     /* ---------------- filter profiles --------- */
-    PassThroughFilter passthrough;
-    MedianFilter<5>   median;
-    EwmaFilter        ewma   = EwmaFilter::withTimeConstant(1200u);
-    Kalman1dFilter    kalman(static_cast<Real>(0.05), static_cast<Real>(0.09));
+    /* The same seven configurations host_demo scores in its comparison table,
+     * so the numbers printed there and the curves drawn here line up.
+     *
+     * Note that the slew limiter and the outlier gate are not offered on their
+     * own. They are guard stages rather than smoothers - a slew limiter alone
+     * passes every bit of noise below its rate limit, and a gate alone does no
+     * smoothing at all. Both earn their place inside a chain, which is where
+     * profiles 6 and 7 put them. */
+    PassThroughFilter      passthrough;
+    MovingAverageFilter<8> movingAverage;
+    MedianFilter<5>        median;
+    EwmaFilter             ewma = EwmaFilter::withTimeConstant(1200u);
+    Kalman1dFilter         kalman(static_cast<Real>(0.05), static_cast<Real>(0.09));
 
     MedianFilter<5>   chainMedian;
     EwmaFilter        chainEwma = EwmaFilter::withTimeConstant(1000u);
@@ -101,14 +112,23 @@ int main() {
     chain.append(&chainEwma);
     chain.append(&chainSlew);
 
-    const FilterProfile profiles[5] = {
-        { "passthrough (raw)",   &passthrough },
-        { "median(5)",           &median      },
-        { "ewma(tau=1.2s)",      &ewma        },
-        { "kalman(Q.05,R.09)",   &kalman      },
-        { "median+ewma+slew",    &chain       }
+    OutlierGate    gate(static_cast<Real>(2), 3u);
+    Kalman1dFilter gatedKalman(static_cast<Real>(0.05), static_cast<Real>(0.09));
+    FilterChain    gatedChain;
+    gatedChain.append(&gate);
+    gatedChain.append(&gatedKalman);
+
+    const uint8_t kProfileCount = 7u;
+    const FilterProfile profiles[kProfileCount] = {
+        { "passthrough (raw)",     &passthrough   },
+        { "moving-average(8)",     &movingAverage },
+        { "median(5)",             &median        },
+        { "ewma(tau=1.2s)",        &ewma          },
+        { "kalman(Q.05,R.09)",     &kalman        },
+        { "median+ewma+slew",      &chain         },
+        { "outlier-gate+kalman",   &gatedChain    }
     };
-    uint8_t activeProfile = 4u;
+    uint8_t activeProfile = 5u;
 
     /* ---------------- channel + service ------- */
     MeasurementPublisher publisher;
@@ -165,7 +185,8 @@ int main() {
         const char key = keyboard.poll();
         switch (key) {
             case 'q': case 'Q': case 3: running = false; break;
-            case '1': case '2': case '3': case '4': case '5':
+            case '1': case '2': case '3': case '4':
+            case '5': case '6': case '7':
                 activeProfile = static_cast<uint8_t>(key - '1');
                 service.setFilter(*profiles[activeProfile].filter);
                 chart.clear();
@@ -290,7 +311,7 @@ int main() {
         AnsiTerminal::line("");
 
         snprintf(lineBuffer, sizeof(lineBuffer),
-                 "  %s[1-5]%s filter   %s[f]%s sensor fault %s  %s[m]%s mqtt link   "
+                 "  %s[1-7]%s filter   %s[f]%s sensor fault %s  %s[m]%s mqtt link   "
                  "%s[+/-]%s setpoint   %s[r]%s reset   %s[q]%s quit",
                  AnsiTerminal::cyan(), AnsiTerminal::reset(),
                  AnsiTerminal::cyan(), AnsiTerminal::reset(),

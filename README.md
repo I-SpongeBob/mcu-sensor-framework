@@ -256,7 +256,8 @@ SensorService service(sensor, chain, clock, publisher);  // 就这一行是"选�
   [1-5] filter   [f] sensor fault   [m] mqtt link   [+/-] setpoint   [r] reset   [q] quit
 ```
 
-`.` 是原始值，`#` 是滤波后。按 `1`~`5` 可以**运行时热切换滤波器**看曲线立刻变化，
+`.` 是原始值，`#` 是滤波后。按 `1`~`7` 可以**运行时热切换滤波器**（和上面对比表里的
+七种配置一一对应）看曲线立刻变化，
 按 `f` 拔掉传感器看故障保护和自动重连，按 `m` 断开 MQTT 看掉线只留最新一条。
 
 两个细节：
