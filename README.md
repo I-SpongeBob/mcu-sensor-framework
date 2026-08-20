@@ -49,38 +49,88 @@ Windows 上加 `-G "MinGW Makefiles"`，生成的是 `build\live_demo.exe`（静
 
 ## 2. 分层架构
 
+### 2.1 数据流总览
+
 ```
-                    ┌──────────────────────────────────────────────────┐
-   应用层            │  GUI 显示      MQTT 上报      业务逻辑(恒温控制)  │
-   application      │  TemperatureView  MqttReporter   Thermostat      │
-                    └────────▲──────────────▲──────────────▲───────────┘
-                             │ 订阅          │ 订阅          │ 订阅
-                    ┌────────┴──────────────┴──────────────┴───────────┐
-   解耦点            │        Publisher<Measurement>  发布/订阅          │  ← 唯一的耦合点
-   decoupling       │        （静态数组，无堆，两个指针一个订阅者）        │
-                    └────────────────────▲─────────────────────────────┘
-                                         │ publish(Measurement)
-                    ┌────────────────────┴─────────────────────────────┐
-   服务层            │  SensorService：定时采样 / 合理性校验 / 故障重试     │
-                    └────────────────────▲─────────────────────────────┘
-                                         │ update(value, timestamp)
-                    ┌────────────────────┴─────────────────────────────┐
-   滤波层            │  IFilter 策略：中值 / 滑动平均 / EWMA / 卡尔曼 /    │
-                    │  限斜率 / 野点门限，FilterChain 可任意串联           │
-                    └────────────────────▲─────────────────────────────┘
-                                         │ read(Sample)
-                    ┌────────────────────┴─────────────────────────────┐
-   驱动层            │  ISensor：NtcThermistorSensor / Lm75Sensor        │
-                    └────────────────────▲─────────────────────────────┘
-                                         │ readRaw() / writeRead() / nowMs()
-                    ┌────────────────────┴─────────────────────────────┐
-   HAL 抽象层        │  IAdcChannel   II2cBus   IClock  （三个接口）      │
-                    └────────────────────▲─────────────────────────────┘
-                                         │
-                    ┌────────────────────┴─────────────────────────────┐
-   平台移植层        │  port/stm32   port/esp32   port/host（仿真）       │  ← 换芯片只改这里
-                    └──────────────────────────────────────────────────┘
+  HAL            DRIVER            SERVICE             APPLICATION
+  ---            ------            -------             -----------
+
+  IAdcChannel -> NtcThermistor -+
+                                |
+  II2cBus     -> Lm75Sensor ----+-> SensorService -+-> GUI display
+                                |         |        |
+  IClock      ------------------+         |        +-> MQTT reporter
+                                          |        |
+                                       IFilter     +-> Thermostat
+                                          |
+                                          v
+                              median -> ewma -> slew
 ```
+
+一次采样的完整路径：HAL 取原始值 → 驱动换算成物理量 → 服务层做调度与容错
+→ 滤波链条件化 → `Publisher` 扇出给三个互不知情的消费者。
+
+图中四个接口名就是四条解耦线，分别切开了四件事：
+
+| 接口 | 切开了 | 换掉它意味着 |
+|---|---|---|
+| `IAdcChannel` / `II2cBus` / `IClock` | **芯片** | 换 MCU 只改 `port/` 下的三个实现 |
+| `ISensor` | **器件** | NTC 换 LM75，上层零改动 |
+| `IFilter` | **算法** | 加卡尔曼不动任何老代码 |
+| `Publisher<Measurement>` | **用途** | 加第四个消费者（如数据记录）改 0 行框架代码 |
+
+### 2.2 依赖层次
+
+```
++--------------------------------------------------------------+
+|  APPLICATION LAYER                                           |
+|  TemperatureView      MqttReporter       Thermostat          |
++----------^-------------------^-------------------^-----------+
+           |                   |                   |  subscribe(Callback)
++----------+-------------------+-------------------+-----------+
+|  DECOUPLING POINT   <-- the only seam in the system          |
+|  Publisher<Measurement>   fixed array, no heap               |
++------------------------------^-------------------------------+
+                               |  publish(Measurement)
++--------------------------------------------------------------+
+|  SERVICE LAYER                                               |
+|  SensorService   scheduling / plausibility / fault retry     |
++------------------------------^-------------------------------+
+                               |  update(value, timestamp)
++--------------------------------------------------------------+
+|  FILTER LAYER                                                |
+|  IFilter   median / moving-average / EWMA / Kalman /         |
+|  slew-limiter / outlier-gate    FilterChain composes         |
++------------------------------^-------------------------------+
+                               |  read(Sample)
++--------------------------------------------------------------+
+|  DRIVER LAYER                                                |
+|  ISensor   NtcThermistorSensor / Lm75Sensor                  |
++------------------------------^-------------------------------+
+                               |  readRaw() / writeRead() / nowMs()
++--------------------------------------------------------------+
+|  HAL LAYER                                                   |
+|  IAdcChannel      II2cBus      IClock                        |
++------------------------------^-------------------------------+
+                               |
++--------------------------------------------------------------+
+|  PORT LAYER         <-- swapping MCU only touches this       |
+|  port/stm32    port/esp32    port/host (simulation)          |
++--------------------------------------------------------------+
+```
+
+图内保持纯 ASCII（避免中英文混排在不同字体下错位），中文对照如下：
+
+| 图中 | 中文 | 职责 |
+|---|---|---|
+| APPLICATION LAYER | 应用层 | 三个互不知情的消费者：GUI 显示 / MQTT 上报 / 恒温控制 |
+| DECOUPLING POINT | 解耦点 | `Publisher<Measurement>` 发布订阅，静态数组无堆 |
+| SERVICE LAYER | 服务层 | 定时采样 / 合理性校验 / 故障重试 |
+| FILTER LAYER | 滤波层 | 中值 / 滑动平均 / EWMA / 卡尔曼 / 限斜率 / 野点门限，`FilterChain` 任意串联 |
+| DRIVER LAYER | 驱动层 | `ISensor` 实现：NTC 热敏电阻 / LM75 数字传感器 |
+| HAL LAYER | HAL 抽象层 | 三个接口：`IAdcChannel` `II2cBus` `IClock` |
+| PORT LAYER | 平台移植层 | 换芯片只改这一层 |
+
 
 每一层只依赖它下面一层的**接口**，不依赖实现。所有装配都集中在
 [examples/host_demo/main.cpp](examples/host_demo/main.cpp) 这一个「组装根」里，
