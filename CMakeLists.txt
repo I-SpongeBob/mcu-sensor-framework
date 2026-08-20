@@ -68,6 +68,7 @@ endif()
 if(SENSORFW_TARGET STREQUAL "host")
     add_library(sensorfw_port_host
         port/host/host_clock.cpp
+        port/host/dashboard.cpp
         port/host/host_peripherals.cpp
         port/host/scenario.cpp
         port/host/simulated_adc.cpp
@@ -80,6 +81,12 @@ if(SENSORFW_TARGET STREQUAL "host")
         add_executable(host_demo examples/host_demo/main.cpp)
         target_link_libraries(host_demo PRIVATE sensorfw_port_host)
         target_compile_options(host_demo PRIVATE ${SENSORFW_WARNINGS})
+
+        # Real-time terminal dashboard. Same stack, driven from the keyboard;
+        # not part of ctest because it runs until the user quits.
+        add_executable(live_demo examples/live_demo/main.cpp)
+        target_link_libraries(live_demo PRIVATE sensorfw_port_host)
+        target_compile_options(live_demo PRIVATE ${SENSORFW_WARNINGS})
     endif()
 
     if(SENSORFW_BUILD_TESTS)

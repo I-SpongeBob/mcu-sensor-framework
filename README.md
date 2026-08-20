@@ -23,7 +23,8 @@
 ```bash
 cmake -S . -B build            # 默认 host 目标
 cmake --build build -j
-./build/host_demo              # 四个演示场景
+./build/host_demo              # 四个演示场景（一次跑完就退出）
+./build/live_demo              # 实时终端仪表盘，键盘可交互
 ctest --test-dir build --output-on-failure
 ```
 
@@ -166,6 +167,54 @@ SensorService service(sensor, chain, clock, publisher);  // 就这一行是"选�
 两个指针，成员函数指针作为模板参数，编译期去虚化——
 `std::function` 会堆分配且拖进异常机制，在固件里基本不能用。
 
+### 实时仪表盘：`./build/live_demo`
+
+同一套代码实时跑，键盘可交互。下面是真实截取的一帧（`t=74s`，刚过 40s 的 −3 ℃ 阶跃，
+加热继电器已经动作）：
+
+```
+  GUI  (TemperatureView -> IDisplay, unmodified)
+  +----------------------------------------------+
+  | Temperature   19.7 C                         |
+  | [#######.............]                       |
+  | src=ntc-10k@adc1  t=74s                      |
+  +----------------------------------------------+
+
+  CHART  . raw  # filtered   filter: median+ewma+slew
+   20.1 |   .                                 .
+        |                                  .               . .    .
+        |               .             .               .  .  .   ..
+        |     ..  .         .  .    .     .               .   .   #####
+        |          .               .             .            ####   .
+        | .       #####       . .       ..  ########       ###
+        |  .######  .  #####     ########### .  .  .#######         . .
+        |### .        .     #####      .
+        |            . . ...                .     .  .  .
+        |       .                .   .
+   18.9 |.                   .                                 .
+        +--------------------------------------------------------------
+
+  SENSOR  healthy    accepted 534    rejected 0    errors 0    retries 0
+  MQTT    link UP    sent 20     suppressed 514    dropped 0
+  CTRL    heater ON         setpoint 21.0 C  switches 1
+  LAST    raw  19.37 C   filtered  19.73 C   status Ok
+
+  [1-5] filter   [f] sensor fault   [m] mqtt link   [+/-] setpoint   [r] reset   [q] quit
+```
+
+`.` 是原始值，`#` 是滤波后。按 `1`~`5` 可以**运行时热切换滤波器**看曲线立刻变化，
+按 `f` 拔掉传感器看故障保护和自动重连，按 `m` 断开 MQTT 看掉线只留最新一条。
+
+两个细节：
+
+- **Y 轴按滤波后的曲线定标，不按原始值。** 否则一个 ±9 ℃ 的毛刺就会把坐标轴
+  撑到 20 ℃ 量程，真正想看的信号被压成一条线。落在窗口外的毛刺被钉在
+  顶行/底行显示——看得见，但不再左右刻度。
+- **仪表盘本身就是第四个订阅者。** `ChartRecorder` 只是又 `attachTo(publisher)` 了一次，
+  GUI、MQTT、恒温器和框架**一行没改**——「加消费者零成本」这句话在这里是被执行的，
+  不是被声称的。上面那个 GUI 方框里的内容，是 `TemperatureView` 照常画进
+  `IDisplay` 的字符缓冲，仪表盘只是把它读出来嵌进整帧里。
+
 ---
 
 ## 5. 跨 MCU 移植：只需要实现三个接口
@@ -267,10 +316,12 @@ app/
   mqtt/                    IMqttClient + MqttReporter
   logic/                   ISwitchOutput + Thermostat（滞回控制）
 port/
-  host/                    虚拟时钟、NTC 分压仿真、LM75 总线仿真、终端外设
+  host/                    虚拟时钟、NTC 分压仿真、LM75 总线仿真、终端外设、
+                           ANSI 仪表盘（终端控制 + 键盘 + 图表订阅者）
   stm32/                   CubeMX HAL 移植
   esp32/                   ESP-IDF 移植
-examples/host_demo/        组装根 + 四个演示场景
+examples/host_demo/        组装根 + 四个演示场景（确定性，CI 里跑）
+examples/live_demo/        实时终端仪表盘（ANSI，键盘交互）
 tests/                     5 个测试套件
 docs/PORTING.md            移植指南
 ```
