@@ -28,6 +28,10 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
+Windows 上加 `-G "MinGW Makefiles"`，生成的是 `build\live_demo.exe`（静态链接，
+不依赖运行时 DLL，可直接双击）。**从零开始的完整步骤、按键说明和常见问题见
+[docs/BUILD.md](docs/BUILD.md)。**
+
 无第三方依赖，只要一个 C++11 编译器和 CMake ≥ 3.16。
 
 **当前状态**（GCC 16.1，`-Wall -Wextra -Wshadow -Wconversion -Wold-style-cast`）：
@@ -323,6 +327,7 @@ port/
 examples/host_demo/        组装根 + 四个演示场景（确定性，CI 里跑）
 examples/live_demo/        实时终端仪表盘（ANSI，键盘交互）
 tests/                     5 个测试套件
+docs/BUILD.md              构建与运行指南（含 Windows/Linux 完整步骤）
 docs/PORTING.md            移植指南
 ```
 
