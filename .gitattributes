@@ -1,0 +1,4 @@
+# Keep LF in the repository: this code is built on Linux CI, on Windows and by
+# vendor toolchains on both.
+* text=auto eol=lf
+*.png binary

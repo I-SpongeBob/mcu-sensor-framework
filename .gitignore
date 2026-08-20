@@ -1,0 +1,12 @@
+build/
+build*/
+cmake-build-*/
+.vscode/
+.idea/
+*.o
+*.obj
+*.exe
+*.a
+*.elf
+*.bin
+*.map

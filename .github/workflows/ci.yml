@@ -1,0 +1,25 @@
+name: build-and-test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  host:
+    name: host build + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Demo
+        run: ./build/host_demo
