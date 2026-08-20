@@ -37,7 +37,7 @@ Windows 上加 `-G "MinGW Makefiles"`，生成的是 `build\live_demo.exe`（静
 **当前状态**（GCC 16.1，`-Wall -Wextra -Wshadow -Wconversion -Wold-style-cast`）：
 
 ```
-18 个源文件编译，0 warning
+20 个编译单元，0 warning
 100% tests passed out of 5      test_filters   : 37 checks, 0 failures
                                 test_publisher : 31 checks, 0 failures
                                 test_drivers   : 31 checks, 0 failures

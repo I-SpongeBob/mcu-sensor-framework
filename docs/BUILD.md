@@ -103,6 +103,19 @@ CI 每次提交都会在 ubuntu-latest 上跑完整的 build + test + demo，
 而底下的传感器、驱动、MQTT、恒温器全程没有重启——这就是
 `SensorService::setFilter()` 一行调用的效果。
 
+### host_demo 双击会闪退，这是正常的
+
+`host_demo` 不是交互程序：四个场景一口气打印完就自己退出，
+所以双击时窗口会闪一下就关掉。想看输出用下面任一种：
+
+```cmd
+cmd /k build\host_demo.exe          :: 跑完窗口留着，可以往上滚
+build\host_demo.exe > demo.txt      :: 输出较长，存文件更好读
+```
+
+Linux/macOS 下从终端直接运行即可，不存在这个问题。
+需要交互界面请用 `live_demo`，它会一直运行到你按 `q`。
+
 ---
 
 ## 4. 交叉编译到 MCU
