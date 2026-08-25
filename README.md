@@ -5,6 +5,9 @@
 ![no heap](https://img.shields.io/badge/heap-none-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
+> **不想装编译器？** [下载 Windows 演示包](https://github.com/I-SpongeBob/mcu-sensor-framework/releases/latest)（332 KB，静态链接，解压双击即用），
+> 或直接看 [docs/DEMO.md](docs/DEMO.md) 里两个 demo 的完整实际输出。
+
 > A portable, allocation-free C++11 sensor framework for microcontrollers.
 > One temperature pipeline — HAL → driver → filter chain → service → publisher —
 > feeds a GUI, an MQTT reporter and a closed-loop thermostat that know nothing
