@@ -16,6 +16,10 @@
 #include <stdio.h>
 #include <math.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #include "app/gui/temperature_view.hpp"
 #include "app/logic/thermostat.hpp"
 #include "app/mqtt/mqtt_reporter.hpp"
@@ -45,6 +49,23 @@ namespace {
 const uint32_t kSamplePeriodMs = 100u;   // 10 Hz acquisition
 const uint32_t kRunDurationMs  = 70000u; // 70 s of scenario
 
+#if defined(_WIN32)
+/**
+ * @brief True when this process is the only one attached to its console.
+ *
+ * That is what distinguishes a double click in Explorer - which creates a
+ * console owned by this process alone and tears it down the moment main()
+ * returns - from being started inside an existing cmd or PowerShell, where the
+ * shell shares the console and the output survives.
+ *
+ * Without this check the demo looks broken when double clicked: it prints its
+ * four scenes correctly and the window vanishes before anyone can read them.
+ */
+bool ownsItsConsole() {
+    DWORD processIds[4];
+    return GetConsoleProcessList(processIds, 4) == 1u;
+}
+#endif
 void banner(const char* title) {
     printf("\n============================================================\n");
     printf(" %s\n", title);
@@ -373,5 +394,15 @@ int main() {
     demoDriverSwap();
 
     printf("\n  Done. Run the unit tests with: ctest --test-dir build --output-on-failure\n\n");
+
+#if defined(_WIN32)
+    /* Keep a double-clicked window open long enough to read. Started from a
+     * shell, or from CI, the console is shared and this is skipped - so this
+     * never blocks a script. */
+    if (ownsItsConsole()) {
+        printf("  Press Enter to close this window.\n");
+        (void)getchar();
+    }
+#endif
     return 0;
 }
